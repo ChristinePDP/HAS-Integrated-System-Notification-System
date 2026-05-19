@@ -1,7 +1,7 @@
 
 # Notification System — Quick Guide
 
-## Base URL
+## Base URL (ang url ay para sa kapag naka upload na, dahil localhost pa lang naman ang ginagawa, localhost ang gagamitin)
 `https://notification-lrqp.onrender.com`
 
 ---
