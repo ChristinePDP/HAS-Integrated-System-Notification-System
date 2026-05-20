@@ -179,3 +179,9 @@ export const processNotification = async (req, res) => {
     senderEmail: req.user?.email || null
     });
 };
+
+
+export const getNotificationLogs = async (req, res) => {
+
+
+}
