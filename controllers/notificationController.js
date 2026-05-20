@@ -31,4 +31,11 @@ export const processNotification = async (req, res) => {
         subject,
         message
         } = req.body;
+
+    if (!recipientEmail || !subject || !message) {
+    return res.status(400).json({
+      code: 'MISSING_FIELDS',
+      message: 'Recipient email, subject, and message are required.'
+    });
+  }
 }
