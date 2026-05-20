@@ -95,4 +95,20 @@ export const processNotification = async (req, res) => {
       message: 'A similar notification was already sent within the last 5 minutes.'
     });
   }
+
+    let emailSent = false;
+    let sendEmailError = null;
+
+    try {
+    await sendEmail(recipientEmail, subject, message);
+    emailSent = true;
+    } catch (error) {
+    emailSent = false;
+    sendEmailError = error.message;
+
+    console.error(
+        `Failed to send email to ${recipientEmail}:`,
+        error
+    );
+    }
 }
