@@ -20,3 +20,10 @@
  * 
  * If senderSystem is not provided, it will be auto-detected from the JWT token's role.
  */
+
+
+import NotificationLog from '../models/NotificationLog.js';
+
+export const processNotification = async (req, res) => {
+  
+    }
