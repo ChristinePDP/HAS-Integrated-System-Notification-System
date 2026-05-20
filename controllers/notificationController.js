@@ -163,4 +163,19 @@ export const processNotification = async (req, res) => {
       error: error.message
     });
   }
+
+  const errorLog = await NotificationLog.create({
+    senderSystem:
+        req.body?.senderSystem ||
+        (req.user?.role ? `${req.user.role} System` : 'Unknown System'),
+
+    recipientEmail: req.body?.recipientEmail || 'unknown_recipient',
+    subject: req.body?.subject || 'unknown_subject',
+    message: req.body?.message || 'unknown_message',
+
+    status: 'Failed',
+    emailSent: false,
+    errorMessage: error.message,
+    senderEmail: req.user?.email || null
+    });
 };
