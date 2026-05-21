@@ -38,4 +38,14 @@ app.get('/', (req, res) => {
   });
 });
 
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'Endpoint not found',
+    code: 'NOT_FOUND',
+    path: req.path
+  });
+});
+
+
 export default app;
