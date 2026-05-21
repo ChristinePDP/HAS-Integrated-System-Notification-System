@@ -23,4 +23,19 @@ await connectDB();
 
 app.use('/api', notificationRoutes);
 
+app.get('/', (req, res) => {
+  res.json({
+    service: 'Notification Service',
+    version: '1.0.0',
+    status: 'running',
+    timestamp: new Date(),
+    endpoints: [
+      'GET /health - Service health check',
+      'POST /api/notify - Process a notification',
+      'GET /api/notification-logs - Retrieve notification logs',
+      'GET /api/health - API health check'
+    ]
+  });
+});
+
 export default app;
