@@ -47,5 +47,28 @@ app.use((req, res) => {
   });
 });
 
+app.use((err, req, res, next) => {
+
+  console.error('Error:', {
+    message: err.message,
+    path: req.path,
+    method: req.method,
+    stack: err.stack
+  });
+
+  // Prepare error response
+  const errorResponse = {
+    success: false,
+    message: err.message || 'Internal Server Error',
+    code: err.code || 'SERVER_ERROR'
+  };
+
+ 
+  if (process.env.NODE_ENV === 'development') {
+    errorResponse.details = err.stack;
+  }
+
+  res.status(err.status || 500).json(errorResponse);
+});
 
 export default app;
