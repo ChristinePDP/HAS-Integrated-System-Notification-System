@@ -11,4 +11,13 @@ app.use(cors({
   credentials: true
 }));
 
+app.use(express.json());
+
+app.use((req, res, next) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${req.method} ${req.path}`);
+  next();
+});
+
+
 export default app;
