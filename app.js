@@ -19,5 +19,7 @@ app.use((req, res, next) => {
   next();
 });
 
+await connectDB();
+
 
 export default app;
