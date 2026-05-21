@@ -21,5 +21,6 @@ app.use((req, res, next) => {
 
 await connectDB();
 
+app.use('/api', notificationRoutes);
 
 export default app;
