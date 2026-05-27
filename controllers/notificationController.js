@@ -2,14 +2,14 @@
 
 /**
  * Process Notification Controller
- * 
+ *
  * Handles incoming notification requests forwarded by the Adapter Layer (Group 2).
  * The Adapter Layer is the ONLY external actor that directly calls this endpoint,
  * routing requests from various microservices (Appointment System, Queue System, etc.)
  * on their behalf.
- * 
+ *
  * Implements duplicate detection, email sending, and database logging.
- * 
+ *
  * Request body format (forwarded by Adapter Layer):
  * {
  *   "senderSystem": "string" (optional - original sender's name, e.g., "Appointment System"),
@@ -17,12 +17,16 @@
  *   "subject": "string",
  *   "message": "string"
  * }
- * 
+ *
  * If senderSystem is not provided, it will be auto-detected from the JWT token's role.
  */
 
-
 import NotificationLog from '../models/NotificationLog.js';
+import { sendEmail } from '../config/mailer.js';
+
+const isValidEmail = (email) => {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+};
 
 export const processNotification = async (req, res) => {
   try {
@@ -52,19 +56,12 @@ export const processNotification = async (req, res) => {
     if (providedSenderSystem) {
       senderSystem = providedSenderSystem;
     } else if (req.user?.role) {
-      switch (req.user.role.toLowerCase()) {
-        case 'doctor':
-          senderSystem = 'Doctor Portal';
-          break;
-        case 'patient':
-          senderSystem = 'Patient Portal';
-          break;
-        case 'admin':
-          senderSystem = 'Admin System';
-          break;
-        default:
-          senderSystem = `${req.user.role} System`;
-      }
+      const role = req.user.role.toLowerCase();
+
+      if (role === 'doctor') senderSystem = 'Doctor Portal';
+      else if (role === 'patient') senderSystem = 'Patient Portal';
+      else if (role === 'admin') senderSystem = 'Admin System';
+      else senderSystem = `${req.user.role} System`;
     }
 
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
@@ -90,7 +87,7 @@ export const processNotification = async (req, res) => {
 
       return res.status(409).json({
         code: 'DUPLICATE_NOTIFICATION',
-        message: 'A similar notification was already sent within the last 5 minutes.',
+        message: 'A similar notification already exists.',
         logId: dupLog._id
       });
     }
@@ -102,10 +99,7 @@ export const processNotification = async (req, res) => {
       await sendEmail(recipientEmail, subject, message);
       emailSent = true;
     } catch (error) {
-      emailSent = false;
       sendEmailError = error.message;
-
-      console.error(`Failed to send email:`, error);
     }
 
     const savedLog = await NotificationLog.create({
@@ -119,37 +113,25 @@ export const processNotification = async (req, res) => {
       senderEmail: req.user?.email || null
     });
 
-    if (emailSent) {
-      return res.status(200).json({
-        code: 'NOTIFICATION_SENT',
-        message: 'Notification successfully processed and sent.',
-        logId: savedLog._id,
-        senderSystem: savedLog.senderSystem,
-        recipientEmail: savedLog.recipientEmail,
-        sentAt: savedLog.createdAt
-      });
-    }
-
-    return res.status(500).json({
-      code: 'EMAIL_SEND_FAILED',
-      message: 'Notification processed but email sending failed.',
+    return res.status(emailSent ? 200 : 500).json({
+      code: emailSent ? 'NOTIFICATION_SENT' : 'EMAIL_SEND_FAILED',
+      message: emailSent
+        ? 'Notification successfully processed and sent.'
+        : 'Notification failed to send.',
       logId: savedLog._id,
-      error: sendEmailError
+      senderSystem: savedLog.senderSystem,
+      recipientEmail: savedLog.recipientEmail,
+      sentAt: savedLog.createdAt
     });
 
   } catch (error) {
-    console.error('Unexpected error:', error);
-
-    
     const errorLog = await NotificationLog.create({
       senderSystem:
         req.body?.senderSystem ||
         (req.user?.role ? `${req.user.role} System` : 'Unknown System'),
-
       recipientEmail: req.body?.recipientEmail || 'unknown_recipient',
       subject: req.body?.subject || 'unknown_subject',
       message: req.body?.message || 'unknown_message',
-
       status: 'Failed',
       emailSent: false,
       errorMessage: error.message,
@@ -158,40 +140,25 @@ export const processNotification = async (req, res) => {
 
     return res.status(500).json({
       code: 'INTERNAL_ERROR',
-      message: 'An unexpected internal server error occurred.',
+      message: 'Unexpected server error.',
       logId: errorLog._id,
       error: error.message
     });
   }
-
-  const errorLog = await NotificationLog.create({
-    senderSystem:
-        req.body?.senderSystem ||
-        (req.user?.role ? `${req.user.role} System` : 'Unknown System'),
-
-    recipientEmail: req.body?.recipientEmail || 'unknown_recipient',
-    subject: req.body?.subject || 'unknown_subject',
-    message: req.body?.message || 'unknown_message',
-
-    status: 'Failed',
-    emailSent: false,
-    errorMessage: error.message,
-    senderEmail: req.user?.email || null
-    });
 };
 
 export const getNotificationLogs = async (req, res) => {
-    try {
-        const { page = 1, limit = 10, status, recipientEmail } = req.query;
+  try {
+    const { page = 1, limit = 10, status, recipientEmail } = req.query;
 
-        const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
-        const parsedLimit = Math.max(parseInt(limit, 10) || 10, 1);
+    const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
+    const parsedLimit = Math.max(parseInt(limit, 10) || 10, 1);
 
-        const skip = (parsedPage - 1) * parsedLimit;
+    const skip = (parsedPage - 1) * parsedLimit;
 
-        let query = {};
+    let query = {};
 
-        if (!req.user || !req.user.role) {
+    if (!req.user || !req.user.role) {
       query.recipientEmail = 'unauthorized_access';
     } else {
       const role = req.user.role.toLowerCase();
@@ -200,18 +167,16 @@ export const getNotificationLogs = async (req, res) => {
         query.recipientEmail = req.user.email;
       }
 
-       if (role === 'doctor') {
+      if (role === 'doctor') {
         query.senderEmail = req.user.email;
       }
 
-       if (role === 'admin') {
-        // admin can optionally filter by recipientEmail
-        if (recipientEmail) {
-          query.recipientEmail = recipientEmail;
-        }
+      if (role === 'admin' && recipientEmail) {
+        query.recipientEmail = recipientEmail;
+      }
     }
-    }
-     if (status) {
+
+    if (status) {
       query.status = status;
     }
 
@@ -231,8 +196,8 @@ export const getNotificationLogs = async (req, res) => {
 
   } catch (error) {
     return res.status(500).json({
-      code: "FETCH_LOGS_ERROR",
-      message: "Failed to fetch notification logs",
+      code: 'FETCH_LOGS_ERROR',
+      message: 'Failed to fetch notification logs',
       error: error.message
     });
   }
@@ -240,4 +205,4 @@ export const getNotificationLogs = async (req, res) => {
 
 
 
-    
+
